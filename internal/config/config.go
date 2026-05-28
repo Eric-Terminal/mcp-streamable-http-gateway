@@ -38,8 +38,8 @@ func Load(path string) (*Config, error) {
 	if cfg.KeepaliveInterval <= 0 {
 		cfg.KeepaliveInterval = 30
 	}
-	if cfg.SessionTimeout < 0 {
-		cfg.SessionTimeout = 0
+	if cfg.SessionTimeout == 0 {
+		cfg.SessionTimeout = 3600
 	}
 	if cfg.Services == nil {
 		cfg.Services = map[string]ServiceConfig{}

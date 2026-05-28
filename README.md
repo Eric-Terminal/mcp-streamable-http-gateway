@@ -64,7 +64,7 @@ Authorization: Bearer <auth_token>
 | `auth_token` | 是 | - | Bearer Token，建议 64 字符以上 |
 | `listen_addr` | 否 | `:8080` | HTTP 监听地址 |
 | `keepalive_interval` | 否 | `30` | MCP 会话 keepalive 间隔，秒 |
-| `session_timeout` | 否 | `0` | Streamable HTTP 空闲会话超时，秒；`0` 表示不主动超时 |
+| `session_timeout` | 否 | `3600` | Streamable HTTP 空闲会话超时，秒；`-1` 表示不主动超时 |
 | `services` | 是 | - | 服务名到 stdio MCP 启动命令的映射 |
 | `services.*.command` | 是 | - | 后端 MCP Server 命令 |
 | `services.*.args` | 否 | `[]` | 命令参数 |
