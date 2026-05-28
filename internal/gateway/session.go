@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os/exec"
 	"sync"
@@ -41,21 +42,29 @@ func (b *serviceBridge) NewServer(r *http.Request) *mcp.Server {
 		return nil
 	}
 
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    b.name,
-		Title:   fmt.Sprintf("%s via Streamable HTTP Gateway", b.name),
-		Version: Version,
-	}, &mcp.ServerOptions{
+	opts := &mcp.ServerOptions{
 		Instructions:                remote.initializeResult.Instructions,
 		Capabilities:                proxyCapabilities(remote.initializeResult.Capabilities),
 		InitializedHandler:          remote.initialized,
 		RootsListChangedHandler:     remote.rootsListChanged,
-		CompletionHandler:           remote.complete,
-		SubscribeHandler:            remote.subscribe,
-		UnsubscribeHandler:          remote.unsubscribe,
 		ProgressNotificationHandler: remote.progress,
 		KeepAlive:                   time.Duration(b.cfg.KeepaliveInterval) * time.Second,
-	})
+	}
+	if caps := remote.initializeResult.Capabilities; caps != nil {
+		if caps.Completions != nil {
+			opts.CompletionHandler = remote.complete
+		}
+		if caps.Resources != nil && caps.Resources.Subscribe {
+			opts.SubscribeHandler = remote.subscribe
+			opts.UnsubscribeHandler = remote.unsubscribe
+		}
+	}
+
+	server := mcp.NewServer(&mcp.Implementation{
+		Name:    b.name,
+		Title:   fmt.Sprintf("%s via Streamable HTTP Gateway", b.name),
+		Version: Version,
+	}, opts)
 
 	remote.server = server
 	remote.registerFeatures(server)
@@ -351,7 +360,10 @@ func proxyCapabilities(caps *mcp.ServerCapabilities) *mcp.ServerCapabilities {
 		return &mcp.ServerCapabilities{}
 	}
 
-	proxy := &mcp.ServerCapabilities{}
+	proxy := &mcp.ServerCapabilities{
+		Experimental: maps.Clone(caps.Experimental),
+		Extensions:   maps.Clone(caps.Extensions),
+	}
 	if caps.Tools != nil {
 		proxy.Tools = &mcp.ToolCapabilities{}
 	}
@@ -368,10 +380,6 @@ func proxyCapabilities(caps *mcp.ServerCapabilities) *mcp.ServerCapabilities {
 	}
 	if caps.Logging != nil {
 		proxy.Logging = &mcp.LoggingCapabilities{}
-	}
-	for name, settings := range caps.Extensions {
-		settingsMap, _ := settings.(map[string]any)
-		proxy.AddExtension(name, settingsMap)
 	}
 	return proxy
 }
