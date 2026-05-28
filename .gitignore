@@ -1,0 +1,6 @@
+config.json
+*.log
+mcp-streamable-http-gateway
+dist/
+tmp/
+PLAN.md
