@@ -2,6 +2,8 @@ module github.com/Eric-Terminal/mcp-streamable-http-gateway
 
 go 1.25.0
 
+toolchain go1.26.10
+
 require github.com/modelcontextprotocol/go-sdk v1.6.1
 
 require (
