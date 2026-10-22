@@ -66,9 +66,31 @@ func (b *serviceBridge) NewServer(r *http.Request) *mcp.Server {
 		Version: Version,
 	}, opts)
 
-	remote.server = server
 	remote.registerFeatures(server)
-	go remote.closeWhenIdle()
+	var watchOnce sync.Once
+	watchSession := func(session *mcp.ServerSession) {
+		watchOnce.Do(func() {
+			go func() {
+				session.Wait()
+				remote.close()
+			}()
+		})
+	}
+	// 短会话可能在两次轮询之间创建并删除，必须直接跟随 SDK 会话的结束通知。
+	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			watchSession(req.GetSession().(*mcp.ServerSession))
+			return next(ctx, method, req)
+		}
+	})
+	// 首个 HTTP 请求可能在解析 MCP 消息前失败；这种情况下也要接管或释放后端。
+	context.AfterFunc(r.Context(), func() {
+		for session := range server.Sessions() {
+			watchSession(session)
+			return
+		}
+		watchOnce.Do(remote.close)
+	})
 
 	return server
 }
@@ -142,7 +164,6 @@ type remoteSession struct {
 	client      *mcp.Client
 	session     *mcp.ClientSession
 	cancel      context.CancelFunc
-	server      *mcp.Server
 
 	initializeResult *mcp.InitializeResult
 
@@ -323,27 +344,6 @@ func (r *remoteSession) rootsListChanged(ctx context.Context, req *mcp.RootsList
 func (r *remoteSession) progress(ctx context.Context, req *mcp.ProgressNotificationServerRequest) {
 	if err := r.session.NotifyProgress(ctx, req.Params); err != nil {
 		logger.GatewayError("[进度转发失败] service=%s error=%v", r.serviceName, err)
-	}
-}
-
-func (r *remoteSession) closeWhenIdle() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	seenOuterSession := false
-	for range ticker.C {
-		count := 0
-		for range r.server.Sessions() {
-			count++
-		}
-		if count > 0 {
-			seenOuterSession = true
-			continue
-		}
-		if seenOuterSession {
-			r.close()
-			return
-		}
 	}
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -16,6 +17,13 @@ type echoResult struct {
 }
 
 func main() {
+	if path := os.Getenv("MCP_TEST_EXIT_FILE"); path != "" {
+		defer func() {
+			if err := os.WriteFile(path, []byte("已退出\n"), 0600); err != nil {
+				log.Print(err)
+			}
+		}()
+	}
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "test-stdio-server",
 		Version: "0.1.0",
